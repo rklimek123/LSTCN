@@ -1,8 +1,9 @@
-# Short-term Cognitive Network building block for LSTCN ensemble.
+# Short-Term Cognitive Network building block for LSTCN ensemble.
 # Describes a S3 class stcn, with some complimentary functions.
 library(MASS)
 library(sigmoid)
 library(types)
+source('util.R')
 
 # Determine the initial W2 matrix.
 get_W2 <- function(M = ? integer) {
@@ -12,30 +13,6 @@ get_W2 <- function(M = ? integer) {
 # Determine the initial B2 matrix.
 get_B2 <- function(M = ? integer) {
   t(as.matrix(rep(0, M)))
-}
-
-# Check if the argument is a matrix with desired shape
-check_matrix_shape <- function(X = ? numeric, shape = ? integer) {
-  is.matrix(X) & dim(X) == shape
-}
-
-# Check if the argument is a vector with desired length
-check_vector_length <- function(X = ? numeric, n = ? integer) {
-  is.vector(X) & length(X) == n
-}
-
-# Standardize the vector X.
-# Returns a standardized vector with the previous mean and standard deviation.
-standardize <- function(X = ? numeric) {
-  if(!is.vector(X)) {
-    "X should be a vector"
-  }
-  else {
-    X_mean <- mean(X)
-    X_sd <- sd(X)
-    V <- (X - X_mean) / X_sd
-    list(V = V, prev_mean = X_mean, prev_sd = X_sd)
-  }
 }
 
 # Activation function for the neurons.
@@ -52,14 +29,12 @@ stcn.new <- function() {
 }
 
 
-# Configure the starting parameters of 
+# Configure the starting parameters of STCN.
 init.stcn <- function(instance = ? list,
                       K = ? integer,
-                      N = ? integer,
-                      L = ? integer,
+                      M = ? integer,
                       W1 = ? numeric,
                       B1 = ? numeric) {
-  M = N * L
   if (!check_matrix_shape(W1, c(M, M))) {
     "W1 should be a MxM matrix"
   }
@@ -70,8 +45,6 @@ init.stcn <- function(instance = ? list,
     append(instance,
            K = K,
            M = M,
-           N = N,
-           L = L,
            W1 = W1,
            B1 = B1,
            W2 = get_W2(M),
@@ -143,8 +116,7 @@ fit.stcn <- function(I = ? list,
              %*% activate(Y, inverse = TRUE)
     I$W2 <- gamma[1:I$M,]
     I$B2 <- gamma[I$M + 1,]
+    I$is_fitted <- TRUE
     I
   }
 }
-
-
