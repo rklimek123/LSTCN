@@ -8,37 +8,63 @@ get_B1 <- function(M = ? integer) {
   t(as.matrix(rep(0, M)))
 }
 
-# Prepare time-series data in a form of K*T by N matrix
-# to a list of length T, consisting of K by N*L matrices (K by M).
+# Prepare time-series data in a form of K*T*L by N matrix
+# to a list of length T, comprised of lists
+# of pairs of K by N*L matrices (K by M),
+# such that first element of the pair is the input
+# and the second one is the expected output.
 prepare_ts <- function(Xs = ? numeric,
                        no_patches = ? integer,
                        steps_ahead = ? integer) {
   dimXs <- dim(Xs)
-  if (!is.matrix(Xs) | dimXs[1] %% no_patches != 0) {
-    "Xs should be a K*T by N matrix"
+  if (!is.matrix(Xs)
+      | dimXs[1] %% no_patches != 0
+      | dimXs[1] %% steps_ahead != 0) {
+    "Xs should be a K*L*T by N matrix"
   }
   else {
     T_ <- no_patches
-    K <- dimXs[1] %/% T_
+    total_steps <- dimXs[1]
+    K <- total_steps %/% T_ %/% L
     N <- dimXs[2]
     L <- steps_ahead
     
-    chopped <- lapply(1:T_, function(i)
-      Xs[(K * i):(K * (i+1) - 1),]
-    )
+    # For each step, add L - 1 next steps.
+    padded <- rbind(Xs, matrix(0, nrow = L - 1, ncol = N))
+    expanded <- t(apply(matrix(1:total_steps), 1,  function(i)
+      as.vector(t(padded[i:(i + L - 1),]))
+    ))
     
-    # Expand one time-series block to a form digestible by STCN.
-    expand_X <- function(X) {
-      # Q: Is this how we are supposed to do it?
-      filled <- rbind(X, matrix(rep(0, (L - 1) * N), nrow = L - 1))
-      expanded <- sapply(1:K, function(i) {
-        chunk <- filled[i:(i+L-1),]
-        as.vector(t(chunk))
-      })
-      expanded
+    # Separate the data by strides.
+    by_strides <- lapply(0:(L - 1), function(stride)
+      expanded[seq(1 + stride, total_steps, L),])
+    
+    # Extract inputs and outputs.
+    inputs <- lapply(by_strides, function(matr) matr[-nrow(by_strides),])
+    outputs <- lapply(by_strides, function(matr) matr[-1,])
+    
+    # Partition inputs and outputs by time-patches.
+    get_by_patches <- function(data) {
+      lapply(1:T_, function(t)
+        lapply(data, function(stride_data)
+          stride_data[(K*(t - 1) + 1):min(K*t, nrow(stride_data)),]
+        )
+      )
     }
     
-    lapply(chopped, expand_X)
+    patches_input <- get_by_patches(inputs)
+    patches_output <- get_by_patches(outputs)
+    
+    # Zip to pairs of input and output.
+    zip_lists <- function(l1, l2) {
+      lapply(1:length(l2), function(i)
+        lapply(1:length(l2[[i]]), function(j)
+          list(l1[[i]][j], l2[[i]][j])
+        )
+      )
+    }
+    
+    zip_lists(patches_input, patches_output)
   }
 }
 
@@ -53,21 +79,16 @@ lstcn.new <- function() {
 
 # Configure the starting parameters of LSTCN.
 # no_patches - T_
-# steps_in_patch - K
 # no_features - N
 # steps_ahead - L
 init.lstcn <- function(instance = ? list,
                        no_patches = ? integer,
-                       steps_in_patch = ? integer,
                        no_features = ? integer,
                        steps_ahead = ? integer) {
-  # Q: The last block wouldn't have an expected output to fit into.
-  #    Do I think correctly?
-  blocks <- rep(stcn.new(), no_patches - 1)
+  blocks <- rep(stcn.new(), no_patches)
   
   append(instance,
          T_ = no_patches,
-         K = steps_in_patch,
          N = no_features,
          L = steps_ahead,
          blocks = blocks,
@@ -75,20 +96,13 @@ init.lstcn <- function(instance = ? list,
 }
 
 
-# Predict on a trained model.
-predict.lstcn <- function(I = ? list,
-                          Xs = ? numeric) {
-  # Q: What to predict? How to predict? So many questions!
-  # TODO: everything
-}
-
-
 # Fit the data to train the model.
-# Xs - time-series data, used for input and output for blocks.
-#      Xs is a K*T by N matrix, so it needs to be prepared before.
-# lambda - ridge regularization penalty,
-# W0 - W1 matrix for the first block
-#      (before-hand knowledge supplied by experts).
+# :param Xs: time-series data, used for input and output for STCN blocks.
+#            Xs is a K*L*T by N matrix, it needs to be prepared before.
+# :param lambda: Ridge regularization penalty,
+# :param W0: W1 matrix for the first STCN block
+#            (before-hand knowledge supplied by experts).
+# :return: Prediction for L next steps after the supplied data.
 fit.lstcn <- function(I = ? list,
                       Xs = ? numeric,
                       lambda = ? numeric,
@@ -98,20 +112,18 @@ fit.lstcn <- function(I = ? list,
     "W0 should be a M by M matrix"
   }
   else {
-    ts_blocks <- prepare_ts(Xs, I$T_, I$L)
+    ts_patches <- prepare_ts(Xs, I$T_, I$L)
     
     W1 <- W0
     B1 <- get_B1(M)
     for (i in 1:length(I$blocks)) {
       initialized <- init(I$blocks[[i]],
-                          I$K, M,
-                          W1, B1)
+                          M, W1, B1)
       fitted_block <- fit(initialized,
-                          ts_blocks[[i]],
-                          ts_blocks[[i + 1]],
+                          ts_patches[[i]],
                           lambda)
-      W1 <- fitted_block$W2
-      B1 <- fitted_block$B2
+      W1 <- get_updated_W1(fitted_block)
+      B1 <- get_updated_B1(fitted_block)
       I$blocks[[i]] <- fitted_block
     }
     I
@@ -119,3 +131,9 @@ fit.lstcn <- function(I = ? list,
 }
 
 
+# Predict on a trained model.
+predict.lstcn <- function(I = ? list,
+                          Xs = ? numeric) {
+  last_steps <- matrix(Xs[(nrow(Xs) - L + 1):nrow(Xs),], nrow = 1, byrow = TRUE)
+  predict(I$blocks[[I$T_]], last_steps)
+}

@@ -107,13 +107,13 @@ fit.stcn <- function(I = ? list,
     phi <- cbind(H, rep(1, nrows))
     phiTphi <- t(phi) %*% phi
     diagLambdaOmega <- lambda * diag(phiTphi)
-    # Q: standardization of the inner layer?
+    # Q5: standardization of the inner layer?
     #    Which is the inner, 1st or 2nd?
     lambdaOmega <- matrix(diagLambdaOmega, nrow=length(diagOmega))
-    # Q: how is gamma (K+1)xM ?
     gamma <- ginv(phiTphi + lambdaOmega)
              %*% t(phi)
              %*% activate(Y, inverse = TRUE)
+    
     I$W2 <- gamma[1:I$M,]
     I$B2 <- gamma[I$M + 1,]
     I$is_fitted <- TRUE
