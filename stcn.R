@@ -20,6 +20,17 @@ activate <- function(x, inverse = FALSE) {
   sigmoid(x, method = "logistic", inverse = inverse)
 }
 
+# Psi function, aggregate *1 and *2 matrices to propagate knowledge.
+knowledge_updater <- function(M1, M2) {
+  # Matrix-wise max
+  first_geq <- M1 >= M2
+  M <- M2
+  M[first_geq] <- M1[first_geq]
+  
+  # tanh
+  tanh(M)
+}
+
 
 # Create an empty instance of STCN.
 stcn.new <- function() {
@@ -31,7 +42,6 @@ stcn.new <- function() {
 
 # Configure the starting parameters of STCN.
 init.stcn <- function(instance = ? list,
-                      K = ? integer,
                       M = ? integer,
                       W1 = ? numeric,
                       B1 = ? numeric) {
@@ -79,6 +89,15 @@ run_layer.stcn <- function(I = ? list,
   }
 }
 
+# Acquire updated W1 knowledge, based on W1 and W2 of the block.
+get_updated_W1.stcn <- function(I = ? list) {
+  knowledge_updater(I$W1, I$W2)
+}
+
+# Acquire updated B1 knowledge, based on B1 and B2 of the block.
+get_updated_B1.stcn <- function(I = ? list) {
+  knowledge_updater(I$B1, I$B2)
+}
 
 # Predict on a trained model.
 predict.stcn <- function(I = ? list,
@@ -86,15 +105,14 @@ predict.stcn <- function(I = ? list,
   run_layer(I, run_layer(I, X, 1), 2)
 }
 
-
-# Fit the data to train the model.
-# X - input data,
-# Y - expected output,
+# One iteration of the fitting process.
+# X - input
+# Y - expected output
 # lambda - ridge regularization penalty.
-fit.stcn <- function(I = ? list,
-                     X = ? numeric,
-                     Y = ? numeric,
-                     lambda = ? numeric) {
+iteration.stcn <- function(I = ? list,
+                           X = ? numeric,
+                           Y = ? numeric,
+                           lambda = ? numeric) {
   nrows <- dim(X)[1]
   if (!is.matrix(Y) | dim(Y) != c(nrows, I$M)) {
     "Y should be a matrix with M columns and same number of rows as X"
@@ -107,16 +125,29 @@ fit.stcn <- function(I = ? list,
     phi <- cbind(H, rep(1, nrows))
     phiTphi <- t(phi) %*% phi
     diagLambdaOmega <- lambda * diag(phiTphi)
-    # Q5: standardization of the inner layer?
-    #    Which is the inner, 1st or 2nd?
+    # TODO: standardization of the inner layer
     lambdaOmega <- matrix(diagLambdaOmega, nrow=length(diagOmega))
     gamma <- ginv(phiTphi + lambdaOmega)
-             %*% t(phi)
-             %*% activate(Y, inverse = TRUE)
+    %*% t(phi)
+    %*% activate(Y, inverse = TRUE)
     
     I$W2 <- gamma[1:I$M,]
     I$B2 <- gamma[I$M + 1,]
-    I$is_fitted <- TRUE
     I
   }
+}
+
+# Fit the data to train the model.
+# data - list of pairs, input and expected
+# lambda - ridge regularization penalty.
+fit.stcn <- function(I = ? list,
+                     data = ? list,
+                     lambda = ? numeric) {
+  for (sample in data) {
+    I <- iteration(I, sample[[1]], sample[[2]], lambda)
+    I$W1 <- get_updated_W1(I)
+    I$B1 <- get_updated_B1(I)
+  }
+  
+  I
 }
