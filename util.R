@@ -23,3 +23,11 @@ standardize <- function(X = ? numeric) {
     list(V = V, prev_mean = X_mean, prev_sd = X_sd)
   }
 }
+
+# Convert a vector into a diagonal matrix,
+# with this vector as its diagonal.
+vector_to_diag <- function(V) {
+  result <- matrix(0, nrow=length(V), ncol=length(V))
+  diag(result) <- V
+  result
+}

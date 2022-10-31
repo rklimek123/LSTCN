@@ -8,6 +8,19 @@ get_B1 <- function(M = ? integer) {
   t(as.matrix(rep(0, M)))
 }
 
+# For each step, add L - 1 next steps.
+add_next_steps <- function(data, steps_ahead) {
+  N <- ncol(data)
+  L <- steps_ahead
+  total <- nrow(data)
+  
+  padded <- rbind(data, matrix(0, nrow = L - 1, ncol = N))
+  t(apply(
+      matrix(1:total), 1, function(i)
+        as.vector(t(padded[i:(i + L - 1),]))
+  ))
+}
+
 # Prepare time-series data in a form of K*T*L by N matrix
 # to a list of length T, comprised of lists
 # of pairs of K by N*L matrices (K by M),
@@ -29,11 +42,7 @@ prepare_ts <- function(Xs = ? numeric,
     N <- dimXs[2]
     L <- steps_ahead
     
-    # For each step, add L - 1 next steps.
-    padded <- rbind(Xs, matrix(0, nrow = L - 1, ncol = N))
-    expanded <- t(apply(matrix(1:total_steps), 1,  function(i)
-      as.vector(t(padded[i:(i + L - 1),]))
-    ))
+    expanded <- add_next_steps(Xs, L)
     
     # Separate the data by strides.
     by_strides <- lapply(0:(L - 1), function(stride)
@@ -110,6 +119,9 @@ fit.lstcn <- function(I = ? list,
   M <- I$N * I$L
   if (!check_matrix_shape(W0, c(M, M))) {
     "W0 should be a M by M matrix"
+  }
+  else if (ncol(Xs) != I$N) {
+    "Xs should have the predetermined number of features (columns)."
   }
   else {
     ts_patches <- prepare_ts(Xs, I$T_, I$L)

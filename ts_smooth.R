@@ -3,8 +3,8 @@ library(types)
 
 mov_avg_smooth <- function(X = ? numeric,
                            window = ? integer) {
-  prefix_sum <- rbind(rep(0, dim(X)[2]), X)
-  nrow_prefix_sum <- dim(prefix_sum)[1]
+  prefix_sum <- rbind(rep(0, ncol(X)), X)
+  nrow_prefix_sum <- nrow(prefix_sum)
   for (i in 2:nrow_prefix_sum) {
     prefix_sum[i,] <- prefix_sum[i,] + prefix_sum[i - 1,]
   }

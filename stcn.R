@@ -31,6 +31,24 @@ knowledge_updater <- function(M1, M2) {
   tanh(M)
 }
 
+# Run training function as described in 4.2 (8)(9)
+gamma_training <- function(X, Y, lambda) {
+  if (nrow(X) != nrow(Y)) {
+    "X and Y should have corresponding number of rows"
+  }
+  else {
+    xTx <- t(X) %*% X
+    # TODO: standardization of the inner layer
+    # I'm not sure whether standardization is necessary in (9).
+    # Q: Standardization in general, it's advised to look into that.
+    lambdaOmega <- vector_to_diag(lambda * diag(xTx))
+    gamma <- ginv(xTx + lambdaOmega)
+             %*% t(X)
+             %*% activate(Y, inverse = TRUE)
+    gamma
+  }
+}
+
 
 # Create an empty instance of STCN.
 stcn.new <- function() {
@@ -123,14 +141,8 @@ iteration.stcn <- function(I = ? list,
   else {
     H <- run_layer(I, X, 1)
     phi <- cbind(H, rep(1, nrows))
-    phiTphi <- t(phi) %*% phi
-    diagLambdaOmega <- lambda * diag(phiTphi)
-    # TODO: standardization of the inner layer
-    lambdaOmega <- matrix(diagLambdaOmega, nrow=length(diagOmega))
-    gamma <- ginv(phiTphi + lambdaOmega)
-    %*% t(phi)
-    %*% activate(Y, inverse = TRUE)
     
+    gamma <- gamma_training(phi, Y, lambda)
     I$W2 <- gamma[1:I$M,]
     I$B2 <- gamma[I$M + 1,]
     I
