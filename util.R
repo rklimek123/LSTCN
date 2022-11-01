@@ -1,4 +1,5 @@
 # Utility functions for working with matrices and vectors.
+source('errors.R')
 
 # Check if the argument is a matrix with desired shape
 check_matrix_shape <- function(X = ? numeric, shape = ? integer) {
@@ -14,7 +15,7 @@ check_vector_length <- function(X = ? numeric, n = ? integer) {
 # Returns a standardized vector with the previous mean and standard deviation.
 standardize <- function(X = ? numeric) {
   if(!is.vector(X)) {
-    "X should be a vector"
+    error_msg("X should be a vector")
   }
   else {
     X_mean <- mean(X)

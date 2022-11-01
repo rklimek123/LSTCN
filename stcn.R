@@ -3,6 +3,10 @@
 library(MASS)
 library(sigmoid)
 library(types)
+
+source('errors.R')
+source('gen_shared.R')
+source('gen_stcn.R')
 source('util.R')
 
 # Determine the initial W2 matrix.
@@ -34,17 +38,30 @@ knowledge_updater <- function(M1, M2) {
 # Run training function as described in 4.2 (8)(9)
 gamma_training <- function(X, Y, lambda) {
   if (nrow(X) != nrow(Y)) {
-    "X and Y should have corresponding number of rows"
+    error_msg("X and Y should have corresponding number of rows")
   }
   else {
     xTx <- t(X) %*% X
     # TODO: standardization of the inner layer
     # I'm not sure whether standardization is necessary in (9).
     # Q: Standardization in general, it's advised to look into that.
+    #    Do we need to apply the (x-mean(x))/sd(x) formula, or fit values into (0, 1)?
+    #    
+    #    I mean, are the values in X and Y standardized as well? Beforehand?
+    #    (standardized, as in fit into (0, 1) non-inclusively)
     lambdaOmega <- vector_to_diag(lambda * diag(xTx))
-    gamma <- ginv(xTx + lambdaOmega)
-             %*% t(X)
-             %*% activate(Y, inverse = TRUE)
+    inversed <- ginv(xTx + lambdaOmega)
+    
+    # xY <- t(X) %*% activate(Y, inverse = TRUE)
+    # sY <- (Y - mean(Y)) / sd(Y)
+    baseY <- min(Y) - eps()
+    rangeY <- max(Y) - min(Y) + 2 * eps()
+    sY <- (Y - baseY) / rangeY
+    xY <- t(X) %*% activate(sY, inverse = TRUE)
+    
+    sGamma <- inversed %*% xY
+    # gamma <- sGamma * sd(Y) + mean(Y)
+    gamma <- sGamma * rangeY + baseY
     gamma
   }
 }
@@ -64,21 +81,20 @@ init.stcn <- function(instance = ? list,
                       W1 = ? numeric,
                       B1 = ? numeric) {
   if (!check_matrix_shape(W1, c(M, M))) {
-    "W1 should be a MxM matrix"
+    error_msg("W1 should be a MxM matrix")
   }
   else if (!check_matrix_shape(B1, c(1, M))) {
-    "B1 should be a 1xM matrix"
+    error_msg("B1 should be a 1xM matrix")
   }
   else {
-    append(instance,
-           K = K,
-           M = M,
-           W1 = W1,
-           B1 = B1,
-           W2 = get_W2(M),
-           B2 = get_B2(M),
-           is_fitted = FALSE
-        )
+    instance$K <- K
+    instance$M <- M
+    instance$W1 <- W1
+    instance$B1 <- B1
+    instance$W2 <- get_W2(M)
+    instance$B2 <- get_B2(M)
+    instance$is_fitted <- FALSE
+    instance
   }
 }
 
@@ -87,10 +103,10 @@ run_layer.stcn <- function(I = ? list,
                            X = ? numeric,
                            layer = ? integer) {
   if (!is.matrix(X) | dim(X)[2] != I$M) {
-    "X should be a matrix with M columns"
+    error_msg("[X] should be a matrix with M columns")
   }
   else if (!is.element(layer, 1:2)) {
-    "layer should be 1 or 2, there are 2 layers total in STCN"
+    error_msg("[layer] should be 1 or 2, there are 2 layers total in STCN")
   }
   else {
     if (layer == 1) {
@@ -120,7 +136,12 @@ get_updated_B1.stcn <- function(I = ? list) {
 # Predict on a trained model.
 predict.stcn <- function(I = ? list,
                          X = ? numeric) {
-  run_layer(I, run_layer(I, X, 1), 2)
+  if (!I$is_fitted) {
+    error_msg("Model hasn't been fitted")
+  }
+  else {
+    run_layer(I, run_layer(I, X, 1), 2)
+  }
 }
 
 # One iteration of the fitting process.
@@ -133,10 +154,10 @@ iteration.stcn <- function(I = ? list,
                            lambda = ? numeric) {
   nrows <- dim(X)[1]
   if (!is.matrix(Y) | dim(Y) != c(nrows, I$M)) {
-    "Y should be a matrix with M columns and same number of rows as X"
+    error_msg("[Y] should be a matrix with M columns and same number of rows as [X]")
   }
   else if (lambda < 0) {
-    "lambda should be a single value that is greater or equal to 0"
+    error_msg("[lambda] should be a single value that is greater or equal to 0")
   }
   else {
     H <- run_layer(I, X, 1)
@@ -160,6 +181,6 @@ fit.stcn <- function(I = ? list,
     I$W1 <- get_updated_W1(I)
     I$B1 <- get_updated_B1(I)
   }
-  
+  I$is_fitted <- TRUE
   I
 }

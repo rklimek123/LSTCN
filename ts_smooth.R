@@ -9,10 +9,10 @@ mov_avg_smooth <- function(X = ? numeric,
     prefix_sum[i,] <- prefix_sum[i,] + prefix_sum[i - 1,]
   }
   
-  smoothed <- prefix_sum[2:nrow_prefix_sum,]
+  smoothed <- matrix(0, nrow=nrow(X), ncol=ncol(X))
   for (i in 2:nrow_prefix_sum) {
     begin_range <- max(1, i - window)
-    smoothed[i,] <-
+    smoothed[i - 1,] <-
       (prefix_sum[i,] - prefix_sum[begin_range,]) / (i - begin_range)
   }
   

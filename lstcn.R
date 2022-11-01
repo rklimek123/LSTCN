@@ -1,6 +1,9 @@
 # Long Short-Term Cognitive Network, ensemble of STCN blocks.
 # Describes a S3 class lstcn, with some complimentary functions.
 library(types)
+
+source('errors.R')
+source('gen_shared.R')
 source('stcn.R')
 
 # Determine the initial B1 matrix of the first STCN block.
@@ -33,7 +36,7 @@ prepare_ts <- function(Xs = ? numeric,
   if (!is.matrix(Xs)
       | dimXs[1] %% no_patches != 0
       | dimXs[1] %% steps_ahead != 0) {
-    "Xs should be a K*L*T by N matrix"
+    error_msg("Xs should be a K*L*T by N matrix")
   }
   else {
     T_ <- no_patches
@@ -96,12 +99,12 @@ init.lstcn <- function(instance = ? list,
                        steps_ahead = ? integer) {
   blocks <- rep(stcn.new(), no_patches)
   
-  append(instance,
-         T_ = no_patches,
-         N = no_features,
-         L = steps_ahead,
-         blocks = blocks,
-         is_fitted = FALSE)
+  instance$T_ <- no_patches
+  instance$N <- no_features
+  instance$L <- steps_ahead
+  instance$blocks <- blocks
+  instance$is_fitted <- FALSE
+  instance
 }
 
 
@@ -118,10 +121,10 @@ fit.lstcn <- function(I = ? list,
                       W0 = ? numeric) {
   M <- I$N * I$L
   if (!check_matrix_shape(W0, c(M, M))) {
-    "W0 should be a M by M matrix"
+    error_msg("W0 should be a M by M matrix")
   }
   else if (ncol(Xs) != I$N) {
-    "Xs should have the predetermined number of features (columns)."
+    error_msg("Xs should have the predetermined number of features (columns).")
   }
   else {
     ts_patches <- prepare_ts(Xs, I$T_, I$L)
@@ -138,6 +141,7 @@ fit.lstcn <- function(I = ? list,
       B1 <- get_updated_B1(fitted_block)
       I$blocks[[i]] <- fitted_block
     }
+    I$is_fitted <- TRUE
     I
   }
 }
@@ -146,6 +150,11 @@ fit.lstcn <- function(I = ? list,
 # Predict on a trained model.
 predict.lstcn <- function(I = ? list,
                           Xs = ? numeric) {
-  last_steps <- matrix(Xs[(nrow(Xs) - L + 1):nrow(Xs),], nrow = 1, byrow = TRUE)
-  predict(I$blocks[[I$T_]], last_steps)
+  if (!I$is_fitted) {
+    error_msg("Model hasn't been fitted")
+  }
+  else {
+    last_steps <- matrix(Xs[(nrow(Xs) - L + 1):nrow(Xs),], nrow = 1, byrow = TRUE)
+    predict(I$blocks[[I$T_]], last_steps)
+  }
 }

@@ -45,7 +45,8 @@ run_lstcn <- function(data,
                       lambda = ? numeric,
                       smoothing_window = ? integer,
                       sigma = ? numeric) {
-  I <- init(lstcn.new(), no_patches, ncol(data), predict_steps)
+  I <- lstcn.new()
+  I <- init(I, no_patches, ncol(data), predict_steps)
   
   # Trim data to multiples of T*L for training the model.
   excess_rows <- nrow(data) %% (no_patches * predict_steps)
