@@ -25,6 +25,13 @@ standardize <- function(X = ? numeric) {
   }
 }
 
+fit_to_one <- function(X = ? numeric) {
+  epsilon <- 1#*eps()
+  begin <- min(X) - epsilon
+  end <- max(X) + epsilon
+  (X - begin) / (end - begin)
+}
+
 # Convert a vector into a diagonal matrix,
 # with this vector as its diagonal.
 vector_to_diag <- function(V) {
