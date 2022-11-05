@@ -22,14 +22,14 @@ source('ts_smooth.R')
 get_W0 <- function(data, steps_ahead,
                    smoothing_window,
                    lambda, sigma) {
-  with_steps <- add_next_steps(data, steps_ahead)
-  partitioned <- with_steps[seq(1, nrow(data), steps_ahead),]
+  with_steps <- arrange_next_steps(data, steps_ahead)
+  
   X <- mov_avg_smooth(
-          partitioned[-nrow(partitioned),],
+          with_steps[-nrow(with_steps),],
           smoothing_window)
   
   Y <- mov_avg_smooth(
-          partitioned[-1,],
+          with_steps[-1,],
           smoothing_window)
   
   base <- gamma_training(X, Y, lambda)
@@ -50,11 +50,19 @@ run_lstcn <- function(data,
   
   # Trim data to multiples of T*L for training the model.
   excess_rows <- nrow(data) %% (no_patches * predict_steps)
-  training_data <- data[1:(nrow(data) - excess_rows),]
   
-  W0 <- get_W0(data, predict_steps,
+  # Additional L steps to the left taken, because we want to keep the last row out
+  # of the training process, as its output will be the result of the prediction.
+  training_data <- data[max(excess_rows - predict_steps + 1, 1):nrow(data),]
+  
+  min_max_coeff <- get_begin_end_for_minmax(training_data)
+  min_data <- min_max_coeff[1]
+  max_data <- min_max_coeff[2]
+  fit_data <- fit_min_max(training_data)
+  
+  W0 <- get_W0(fit_data, predict_steps,
                smoothing_window,
                lambda, sigma)
-  I <- fit(I, data, lambda, W0)
-  predict(I, data)
+  I <- fit(I, fit_data, lambda, W0)
+  unfit_min_max(predict(I, fit_data), min_data, max_data)
 }

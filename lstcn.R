@@ -12,21 +12,21 @@ get_B1 <- function(M = ? integer) {
 }
 
 # For each step, add L - 1 next steps.
-add_next_steps <- function(data, steps_ahead) {
+arrange_next_steps <- function(data, steps_ahead) {
   N <- ncol(data)
   L <- steps_ahead
-  total <- nrow(data)
+  total_L <- nrow(data) %/% L
   
-  padded <- rbind(data, matrix(0, nrow = L - 1, ncol = N))
+  #padded <- rbind(data, matrix(0, nrow = L - 1, ncol = N))
+  
   t(apply(
-      matrix(1:total), 1, function(i)
-        as.vector(t(padded[i:(i + L - 1),]))
+      matrix(1:(total_L - L)), 1, function(i)
+        as.vector(t(data[(L*(i - 1) + 1):(L * i),]))
   ))
 }
 
-# Prepare time-series data in a form of K*T*L by N matrix
-# to a list of length T, comprised of lists
-# of pairs of K by N*L matrices (K by M),
+# Prepare time-series data in a form of (K*T*L + 1) by N matrix
+# to a list of length T, with pairs of K by N*L matrices (K by M),
 # such that first element of the pair is the input
 # and the second one is the expected output.
 prepare_ts <- function(Xs = ? numeric,
@@ -34,45 +34,35 @@ prepare_ts <- function(Xs = ? numeric,
                        steps_ahead = ? integer) {
   dimXs <- dim(Xs)
   if (!is.matrix(Xs)
-      | dimXs[1] %% no_patches != 0
-      | dimXs[1] %% steps_ahead != 0) {
-    error_msg("Xs should be a K*L*T by N matrix")
+      | (dimXs[1] - 1) %% (no_patches * steps_ahead) != 0) {
+    error_msg("Xs should be a (K*L*T + 1) by N matrix")
   }
   else {
     T_ <- no_patches
-    total_steps <- dimXs[1]
-    K <- total_steps %/% T_ %/% L
-    N <- dimXs[2]
     L <- steps_ahead
+    K <- (dimXs[1] - 1) %/% T_ %/% L
+    N <- dimXs[2]
     
-    expanded <- add_next_steps(Xs, L)
+    expanded <- arrange_next_steps(Xs, L)
     
-    # Separate the data by strides.
-    by_strides <- lapply(0:(L - 1), function(stride)
-      expanded[seq(1 + stride, total_steps, L),])
-    
-    # Extract inputs and outputs.
-    inputs <- lapply(by_strides, function(matr) matr[-nrow(by_strides),])
-    outputs <- lapply(by_strides, function(matr) matr[-1,])
+    # Extract input and output.
+    X <- expanded[-nrow(expanded),]
+    Y <- expanded[-1,]
     
     # Partition inputs and outputs by time-patches.
     get_by_patches <- function(data) {
       lapply(1:T_, function(t)
-        lapply(data, function(stride_data)
-          stride_data[(K*(t - 1) + 1):min(K*t, nrow(stride_data)),]
-        )
+        data[(K*(t - 1) + 1):min(K*t, nrow(data)),]
       )
     }
     
-    patches_input <- get_by_patches(inputs)
-    patches_output <- get_by_patches(outputs)
+    patches_input <- get_by_patches(X)
+    patches_output <- get_by_patches(Y)
     
     # Zip to pairs of input and output.
     zip_lists <- function(l1, l2) {
-      lapply(1:length(l2), function(i)
-        lapply(1:length(l2[[i]]), function(j)
-          list(l1[[i]][j], l2[[i]][j])
-        )
+      lapply(1:length(l1), function(i)
+          list(l1[[i]], l2[[i]])
       )
     }
     
@@ -97,7 +87,7 @@ init.lstcn <- function(instance = ? list,
                        no_patches = ? integer,
                        no_features = ? integer,
                        steps_ahead = ? integer) {
-  blocks <- rep(stcn.new(), no_patches)
+  blocks <- rep(list(stcn.new()), no_patches)
   
   instance$T_ <- no_patches
   instance$N <- no_features
@@ -110,7 +100,7 @@ init.lstcn <- function(instance = ? list,
 
 # Fit the data to train the model.
 # :param Xs: time-series data, used for input and output for STCN blocks.
-#            Xs is a K*L*T by N matrix, it needs to be prepared before.
+#            Xs is a (K*L*T + 1) by N matrix, it needs to be prepared before.
 # :param lambda: Ridge regularization penalty,
 # :param W0: W1 matrix for the first STCN block
 #            (before-hand knowledge supplied by experts).
@@ -154,7 +144,7 @@ predict.lstcn <- function(I = ? list,
     error_msg("Model hasn't been fitted")
   }
   else {
-    last_steps <- matrix(Xs[(nrow(Xs) - L + 1):nrow(Xs),], nrow = 1, byrow = TRUE)
+    last_steps <- matrix(Xs[(nrow(Xs) - I$L + 1):nrow(Xs),], nrow = 1)
     predict(I$blocks[[I$T_]], last_steps)
   }
 }

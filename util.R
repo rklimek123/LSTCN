@@ -3,7 +3,7 @@ source('errors.R')
 
 # Check if the argument is a matrix with desired shape
 check_matrix_shape <- function(X = ? numeric, shape = ? integer) {
-  is.matrix(X) & dim(X) == shape
+  is.matrix(X) & all(dim(X) == shape)
 }
 
 # Check if the argument is a vector with desired length
@@ -25,11 +25,22 @@ standardize <- function(X = ? numeric) {
   }
 }
 
-fit_to_one <- function(X = ? numeric) {
-  epsilon <- 1#*eps()
+get_begin_end_for_minmax <- function(X = ? numeric) {
+  epsilon <- 1e-3#eps()
   begin <- min(X) - epsilon
   end <- max(X) + epsilon
+  c(begin, end)
+}
+
+fit_min_max <- function(X = ? numeric) {
+  minmax_range <- get_begin_end_for_minmax(X)
+  begin <- minmax_range[1]
+  end <- minmax_range[2]
   (X - begin) / (end - begin)
+}
+
+unfit_min_max <- function(X = ? numeric, begin = ? numeric, end = ? numeric) {
+  X * (end - begin) + begin
 }
 
 # Convert a vector into a diagonal matrix,

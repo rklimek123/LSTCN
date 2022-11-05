@@ -1,7 +1,6 @@
 # Short-Term Cognitive Network building block for LSTCN ensemble.
 # Describes a S3 class stcn, with some complimentary functions.
 library(MASS)
-library(sigmoid)
 library(types)
 
 source('errors.R')
@@ -20,8 +19,13 @@ get_B2 <- function(M = ? integer) {
 }
 
 # Activation function for the neurons.
-activate <- function(x, inverse = FALSE) {
-  sigmoid(x, method = "logistic", inverse = inverse)
+activate <- function(x, inv = FALSE) {
+  if (inv) {
+    log(x / (1 - x))
+  }
+  else {
+    1 / (1 + exp(-x))
+  }
 }
 
 # Psi function, aggregate *1 and *2 matrices to propagate knowledge.
@@ -46,22 +50,11 @@ gamma_training <- function(X, Y, lambda) {
     # I'm not sure whether standardization is necessary in (9).
     # Q: Standardization in general, it's advised to look into that.
     #    Do we need to apply the (x-mean(x))/sd(x) formula, or fit values into (0, 1)?
-    #    
-    #    I mean, are the values in X and Y standardized as well? Beforehand?
-    #    (standardized, as in fit into (0, 1) non-inclusively)
     lambdaOmega <- vector_to_diag(lambda * diag(xTx))
     inversed <- ginv(xTx + lambdaOmega)
     
-    # xY <- t(X) %*% activate(Y, inverse = TRUE)
-    # sY <- (Y - mean(Y)) / sd(Y)
-    baseY <- min(Y) - eps()
-    rangeY <- max(Y) - min(Y) + 2 * eps()
-    sY <- (Y - baseY) / rangeY
-    xY <- t(X) %*% activate(sY, inverse = TRUE)
-    
-    sGamma <- inversed %*% xY
-    # gamma <- sGamma * sd(Y) + mean(Y)
-    gamma <- sGamma * rangeY + baseY
+    xY <- t(X) %*% activate(Y, inv = TRUE)
+    gamma <- inversed %*% xY
     gamma
   }
 }
@@ -87,7 +80,6 @@ init.stcn <- function(instance = ? list,
     error_msg("B1 should be a 1xM matrix")
   }
   else {
-    instance$K <- K
     instance$M <- M
     instance$W1 <- W1
     instance$B1 <- B1
@@ -102,7 +94,7 @@ init.stcn <- function(instance = ? list,
 run_layer.stcn <- function(I = ? list,
                            X = ? numeric,
                            layer = ? integer) {
-  if (!is.matrix(X) | dim(X)[2] != I$M) {
+  if (!is.matrix(X) | any(dim(X)[2] != I$M)) {
     error_msg("[X] should be a matrix with M columns")
   }
   else if (!is.element(layer, 1:2)) {
@@ -119,7 +111,7 @@ run_layer.stcn <- function(I = ? list,
     }
     
     unbiased <- X %*% W
-    activate(apply(unbiased, 1, function(r) r + B))
+    activate(t(apply(unbiased, 1, function(r) r + B)))
   }
 }
 
@@ -153,7 +145,7 @@ iteration.stcn <- function(I = ? list,
                            Y = ? numeric,
                            lambda = ? numeric) {
   nrows <- dim(X)[1]
-  if (!is.matrix(Y) | dim(Y) != c(nrows, I$M)) {
+  if (!is.matrix(Y) | any(dim(Y) != c(nrows, I$M))) {
     error_msg("[Y] should be a matrix with M columns and same number of rows as [X]")
   }
   else if (lambda < 0) {
@@ -165,22 +157,18 @@ iteration.stcn <- function(I = ? list,
     
     gamma <- gamma_training(phi, Y, lambda)
     I$W2 <- gamma[1:I$M,]
-    I$B2 <- gamma[I$M + 1,]
+    I$B2 <- t(as.matrix(gamma[I$M + 1,]))
     I
   }
 }
 
 # Fit the data to train the model.
-# data - list of pairs, input and expected
+# data - pair, input and output
 # lambda - ridge regularization penalty.
 fit.stcn <- function(I = ? list,
                      data = ? list,
                      lambda = ? numeric) {
-  for (sample in data) {
-    I <- iteration(I, sample[[1]], sample[[2]], lambda)
-    I$W1 <- get_updated_W1(I)
-    I$B1 <- get_updated_B1(I)
-  }
+  I <- iteration(I, data[[1]], data[[2]], lambda)
   I$is_fitted <- TRUE
   I
 }
