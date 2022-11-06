@@ -25,7 +25,7 @@ arrange_next_steps <- function(data, steps_ahead) {
   ))
 }
 
-# Prepare time-series data in a form of (K*T*L + 1) by N matrix
+# Prepare time-series data in a form of (K*T*L + L) by N matrix
 # to a list of length T, with pairs of K by N*L matrices (K by M),
 # such that first element of the pair is the input
 # and the second one is the expected output.
@@ -34,13 +34,13 @@ prepare_ts <- function(Xs = ? numeric,
                        steps_ahead = ? integer) {
   dimXs <- dim(Xs)
   if (!is.matrix(Xs)
-      | (dimXs[1] - 1) %% (no_patches * steps_ahead) != 0) {
-    error_msg("Xs should be a (K*L*T + 1) by N matrix")
+      | (dimXs[1] - steps_ahead) %% (no_patches * steps_ahead) != 0) {
+    error_msg("Xs should be a (L*T*K + L) by N matrix")
   }
   else {
     T_ <- no_patches
     L <- steps_ahead
-    K <- (dimXs[1] - 1) %/% T_ %/% L
+    K <- (dimXs[1] - steps_ahead) %/% T_ %/% L
     N <- dimXs[2]
     
     expanded <- arrange_next_steps(Xs, L)

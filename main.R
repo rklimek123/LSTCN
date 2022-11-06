@@ -60,6 +60,8 @@ run_lstcn <- function(data,
   max_data <- min_max_coeff[2]
   fit_data <- fit_min_max(training_data)
   
+  set.seed(4*8*15*16*23*42)
+  
   W0 <- get_W0(fit_data, predict_steps,
                smoothing_window,
                lambda, sigma)
