@@ -20,7 +20,7 @@ arrange_next_steps <- function(data, steps_ahead) {
   #padded <- rbind(data, matrix(0, nrow = L - 1, ncol = N))
   
   t(apply(
-      matrix(1:(total_L - L)), 1, function(i)
+      matrix(1:(total_L - 1)), 1, function(i)
         as.vector(t(data[(L*(i - 1) + 1):(L * i),]))
   ))
 }

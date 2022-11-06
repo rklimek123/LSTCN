@@ -1,6 +1,6 @@
 source('main.R')
 
-data <- matrix(1:30000015, ncol=3, byrow=TRUE)
+data <- matrix(1:300015, ncol=3, byrow=TRUE)
 
 # debug(run_lstcn)(data,
 #           no_patches = 3,
