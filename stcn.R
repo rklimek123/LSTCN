@@ -158,7 +158,9 @@ iteration.stcn <- function(I = ? list,
     gamma <- gamma_training(phi, Y, lambda)
     I$W2 <- gamma[1:I$M,]
     I$B2 <- t(as.matrix(gamma[I$M + 1,]))
-    I
+    
+    mae <- get_MAE(run_layer(I, H, 2), Y)
+    list(I, mae)
   }
 }
 
@@ -168,7 +170,8 @@ iteration.stcn <- function(I = ? list,
 fit.stcn <- function(I = ? list,
                      data = ? list,
                      lambda = ? numeric) {
-  I <- iteration(I, data[[1]], data[[2]], lambda)
+  Imae <- iteration(I, data[[1]], data[[2]], lambda)
+  I <- Imae[[1]]
   I$is_fitted <- TRUE
-  I
+  list(I, Imae[[2]])
 }

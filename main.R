@@ -76,15 +76,19 @@ run_lstcn <- function(data,
   W0 <- get_W0(fit_data, predict_steps,
                smoothing_window,
                lambda, sigma)
-  I <- fit(I, fit_data, lambda, W0)
+  Imaes <- fit(I, fit_data, lambda, W0)
+  # If needed, can print out or return the whole errors vector.
+  
   #unfit_min_max(predict(I, fit_data), min_data, max_data)
-  I
+  list(Imaes[[1]], mean(Imaes[[2]]))
 }
 
 # Run tests with the method described in chapter 5 of the paper.
 # data - consecutive time-steps in each row, N columns (number of features).
 # return: 
-run_test <- function(data) {
+run_test <- function(data, to_predict) {
+  L <- to_predict
+  
   min_max_coeff <- get_begin_end_for_minmax(data)
   min_data <- min_max_coeff[1]
   max_data <- min_max_coeff[2]
@@ -94,9 +98,6 @@ run_test <- function(data) {
   
   # 20% of data is for testing.
   for_testing <- total_steps %/% 5
-  
-  # TODO: Variable L as argument, now constant for convenience.
-  L <- 20
   
   training_steps <- as.matrix(
     fit_data[1:(total_steps - for_testing),]
@@ -114,12 +115,15 @@ run_test <- function(data) {
     for (lambda_ in 10**c(-3:-1, 1:3)) {
       cat("Run LSTCN for", T_, "time-patches, lambda =", lambda_, "\n")
       
-      m <- run_lstcn(training_steps,
-                     no_patches = T_,
-                     predict_steps = L,
-                     lambda = lambda_,
-                     smoothing_window = 100,
-                     sigma = 0.05)
+      mMae <- run_lstcn(training_steps,
+                        no_patches = T_,
+                        predict_steps = L,
+                        lambda = lambda_,
+                        smoothing_window = 100,
+                        sigma = 0.05)
+      cat("Training MAE:", mMae[[2]], "\n")
+      
+      m <- mMae[[1]]
       MAE <- predict(m, test_steps)
       cat("Mean Absolute Error:", MAE, "\n\n")
       if (MAE < bestError) {

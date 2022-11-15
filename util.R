@@ -50,3 +50,12 @@ vector_to_diag <- function(V) {
   diag(result) <- V
   result
 }
+
+# The final error is the Mean Absolute Error.
+# For each data dimension an error is calculated, then a mean is taken, and
+# then a mean is taken for all observations.
+get_MAE <- function(real, expected) {
+  abs_errors <- abs(real - expected)
+  obs_means <- apply(abs_errors, 1, mean)
+  mean(obs_means)
+}

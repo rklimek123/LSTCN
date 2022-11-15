@@ -117,6 +117,9 @@ fit.lstcn <- function(I = ? list,
     error_msg("Xs should have the predetermined number of features (columns).")
   }
   else {
+    # Collecting subsequent training errors.
+    fit_errors <- vector("numeric", length(I$blocks))
+    
     ts_patches <- prepare_ts(Xs, I$T_, I$L)
     
     W1 <- W0
@@ -124,15 +127,18 @@ fit.lstcn <- function(I = ? list,
     for (i in 1:length(I$blocks)) {
       initialized <- init(I$blocks[[i]],
                           M, W1, B1)
-      fitted_block <- fit(initialized,
-                          ts_patches[[i]],
-                          lambda)
+      fit_out <- fit(initialized,
+                   ts_patches[[i]],
+                   lambda)
+      fitted_block <- fit_out[[1]]
+      fit_errors[i] <- fit_out[[2]]
+      
       W1 <- get_updated_W1(fitted_block)
       B1 <- get_updated_B1(fitted_block)
       I$blocks[[i]] <- fitted_block
     }
     I$is_fitted <- TRUE
-    I
+    list(I, fit_errors)
   }
 }
 
@@ -149,12 +155,6 @@ predict.lstcn <- function(I = ? list,
     oX <- prepared[[2]]
     
     outputs <- predict(I$blocks[[I$T_]], iX)
-    
-    # The final error is the Mean Absolute Error.
-    # For each data dimension an error is calculated, then a mean is taken, and
-    # then a mean is taken for all observations.
-    abs_errors <- abs(oX - outputs)
-    obs_means <- apply(abs_errors, 1, mean)
-    mean(obs_means)
+    get_MAE(outputs, oX)
   }
 }
