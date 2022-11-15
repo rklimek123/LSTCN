@@ -25,22 +25,23 @@ standardize <- function(X = ? numeric) {
   }
 }
 
-get_begin_end_for_minmax <- function(X = ? numeric) {
-  epsilon <- 1e-3#eps()
+get_begin_end_for_minmax <- function(X = ? numeric, epsilon = ? numeric) {
   begin <- min(X) - epsilon
   end <- max(X) + epsilon
   c(begin, end)
 }
 
-fit_min_max <- function(X = ? numeric) {
-  minmax_range <- get_begin_end_for_minmax(X)
+fit_min_max <- function(X = ? numeric, epsilon = ? numeric) {
+  minmax_range <- get_begin_end_for_minmax(X, epsilon)
   begin <- minmax_range[1]
   end <- minmax_range[2]
   (X - begin) / (end - begin)
 }
 
-unfit_min_max <- function(X = ? numeric, begin = ? numeric, end = ? numeric) {
-  X * (end - begin) + begin
+# Fit min_max, but before that, fit each dimension to [0, 1] independently. 
+fit_min_max_even <- function(X = ? numeric, epsilon = 1e-6) {
+  even_fit <- apply(X, 2, fit_min_max, epsilon = 0)
+  fit_min_max(even_fit, epsilon)
 }
 
 # Convert a vector into a diagonal matrix,

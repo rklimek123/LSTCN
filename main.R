@@ -16,6 +16,7 @@
 
 library(pracma)
 library(types)
+source('interpolate.R')
 source('lstcn.R')
 source('ts_smooth.R')
 
@@ -65,11 +66,7 @@ run_lstcn <- function(data,
   I <- init(I, no_patches, ncol(data), predict_steps)
   
   training_data <- trim_to_multiple(data, no_patches, predict_steps)
-  
-  min_max_coeff <- get_begin_end_for_minmax(training_data)
-  min_data <- min_max_coeff[1]
-  max_data <- min_max_coeff[2]
-  fit_data <- fit_min_max(training_data)
+  fit_data <- fit_min_max_even(training_data)
   
   set.seed(4*8*15*16*23*42)
   
@@ -77,9 +74,8 @@ run_lstcn <- function(data,
                smoothing_window,
                lambda, sigma)
   Imaes <- fit(I, fit_data, lambda, W0)
-  # If needed, can print out or return the whole errors vector.
   
-  #unfit_min_max(predict(I, fit_data), min_data, max_data)
+  # If needed, can print out or return the whole errors vector.
   list(Imaes[[1]], mean(Imaes[[2]]))
 }
 
@@ -89,10 +85,8 @@ run_lstcn <- function(data,
 run_test <- function(data, to_predict) {
   L <- to_predict
   
-  min_max_coeff <- get_begin_end_for_minmax(data)
-  min_data <- min_max_coeff[1]
-  max_data <- min_max_coeff[2]
-  fit_data <- fit_min_max(data)
+  interpolated <- interpolate_matrix(data)
+  fit_data <- fit_min_max_even(interpolated)
   
   total_steps <- nrow(fit_data)
   
