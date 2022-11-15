@@ -25,7 +25,7 @@ arrange_next_steps <- function(data, steps_ahead) {
   ))
 }
 
-# Prepare time-series data in a form of (K*T*L + L) by N matrix
+# Prepare time-series data in a form of (T*K) by N matrix
 # to a list of length T, with pairs of K by N*L matrices (K by M),
 # such that first element of the pair is the input
 # and the second one is the expected output.
@@ -35,7 +35,7 @@ prepare_ts <- function(Xs = ? numeric,
   dimXs <- dim(Xs)
   if (!is.matrix(Xs)
       | (dimXs[1] - steps_ahead) %% (no_patches * steps_ahead) != 0) {
-    error_msg("Xs should be a (L*T*K + L) by N matrix")
+    error_msg("Xs should be a (T*K*L + L) by N matrix")
   }
   else {
     T_ <- no_patches
@@ -137,14 +137,24 @@ fit.lstcn <- function(I = ? list,
 }
 
 
-# Predict on a trained model.
+# Predict on a trained model and return Mean Absolute Errors for each prediction.
 predict.lstcn <- function(I = ? list,
                           Xs = ? numeric) {
   if (!I$is_fitted) {
     error_msg("Model hasn't been fitted")
   }
   else {
-    last_steps <- matrix(Xs[(nrow(Xs) - I$L + 1):nrow(Xs),], nrow = 1)
-    predict(I$blocks[[I$T_]], last_steps)
+    prepared <- prepare_ts(Xs, 1, I$L)[[1]]
+    iX <- prepared[[1]]
+    oX <- prepared[[2]]
+    
+    outputs <- predict(I$blocks[[I$T_]], iX)
+    
+    # The final error is the Mean Absolute Error.
+    # For each data dimension an error is calculated, then a mean is taken, and
+    # then a mean is taken for all observations.
+    abs_errors <- abs(oX - outputs)
+    obs_means <- apply(abs_errors, 1, mean)
+    mean(obs_means)
   }
 }

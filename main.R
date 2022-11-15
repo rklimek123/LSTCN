@@ -39,6 +39,22 @@ get_W0 <- function(data, steps_ahead,
   })
 }
 
+# Trim a matrix to a number of rows divisible by A*B,
+# with B extra steps on top of that.
+# Trims starting rows, keeping the latter intact.
+trim_to_multiple <- function(data,
+                             A = ? integer,
+                             B = ? integer) {
+  # Trim data to multiples of (A * B) (and extra B steps)
+  # to a form digestible by the model.
+  excess_rows <- (nrow(data) - B) %% (A * B)
+  
+  # Additional B steps to the left taken, because we want to keep the last row out
+  # of the training process, only using it as a gold-standard output reference,
+  # hence the "+ B" part.
+  as.matrix(data[(excess_rows + 1):nrow(data),])
+}
+
 run_lstcn <- function(data,
                       no_patches = ? integer,
                       predict_steps = ? integer,
@@ -48,13 +64,7 @@ run_lstcn <- function(data,
   I <- lstcn.new()
   I <- init(I, no_patches, ncol(data), predict_steps)
   
-  # Trim data to multiples of T*L for training the model.
-  excess_rows <- nrow(data) %% (no_patches * predict_steps)
-  
-  # Additional L steps to the left taken, because we want to keep the last row out
-  # of the training process, as its output will be the result of the prediction.
-  training_data <- as.matrix(
-    data[max(excess_rows - predict_steps + 1, 1):nrow(data),])
+  training_data <- trim_to_multiple(data, no_patches, predict_steps)
   
   min_max_coeff <- get_begin_end_for_minmax(training_data)
   min_data <- min_max_coeff[1]
@@ -67,50 +77,59 @@ run_lstcn <- function(data,
                smoothing_window,
                lambda, sigma)
   I <- fit(I, fit_data, lambda, W0)
-  unfit_min_max(predict(I, fit_data), min_data, max_data)
+  #unfit_min_max(predict(I, fit_data), min_data, max_data)
+  I
 }
 
 # Run tests with the method described in chapter 5 of the paper.
 # data - consecutive time-steps in each row, N columns (number of features).
 # return: 
 run_test <- function(data) {
-  total_steps <- nrow(data)
+  min_max_coeff <- get_begin_end_for_minmax(data)
+  min_data <- min_max_coeff[1]
+  max_data <- min_max_coeff[2]
+  fit_data <- fit_min_max(data)
+  
+  total_steps <- nrow(fit_data)
   
   # 20% of data is for testing.
-  L <- total_steps %/% 5
+  for_testing <- total_steps %/% 5
   
-  training_steps <- as.matrix(data[1:(total_steps - L)])
-  test_steps <- data[(total_steps - L + 1):total_steps,]
-  expected_output <- matrix(t(test_steps), nrow = 1, byrow = TRUE)
+  # TODO: Variable L as argument, now constant for convenience.
+  L <- 20
+  
+  training_steps <- as.matrix(
+    fit_data[1:(total_steps - for_testing),]
+  )
+  test_steps <- as.matrix(
+    fit_data[(total_steps - for_testing + 1):total_steps,]
+  )
+  test_steps <- trim_to_multiple(test_steps, 1, L)
   
   bestT <- NaN
   bestLambda <- NaN
   bestError <- Inf
-  bestOutput <- NULL
   
   for (T_ in 1:10) {
     for (lambda_ in 10**c(-3:-1, 1:3)) {
-      cat("Run LSTCN for", T_, "time-patches, lambda =", lambda_)
+      cat("Run LSTCN for", T_, "time-patches, lambda =", lambda_, "\n")
       
-      output <- run_lstcn(training_steps,
-                          no_patches = T_,
-                          predict_steps = L,
-                          lambda = lambda_,
-                          smoothing_window = 100,
-                          sigma = 0.05)
-      MAE <- mean(abs(expected_output - output))
-      cat("Mean Absolute Error:", MAE, "\n")
+      m <- run_lstcn(training_steps,
+                     no_patches = T_,
+                     predict_steps = L,
+                     lambda = lambda_,
+                     smoothing_window = 100,
+                     sigma = 0.05)
+      MAE <- predict(m, test_steps)
+      cat("Mean Absolute Error:", MAE, "\n\n")
       if (MAE < bestError) {
         bestError <- MAE
         bestT <- T_
         bestLambda <- lambda_
-        bestOutput <- output
       }
     }
   }
   
   cat("Test finished")
-  cat("Expected output: [", expected_output, "]")
-  cat("Best output: [", bestOutput, "]")
   cat("Error:", bestError, ", T =", bestT, ", lambda =", bestLambda)
 }
